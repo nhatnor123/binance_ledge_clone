@@ -1,0 +1,512 @@
+openapi: 3.0.3
+info:
+  title: Binance Ledger Clone API
+  description: |
+    REST API for the Binance Ledger Clone — Query/Read Domain (CQRS).
+
+    This API provides read-only access to account balances and transaction history.
+    Data is sourced from PostgreSQL, which is populated via Kafka from the Raft write domain.
+
+    **Write operations** (deposit, withdraw, transfer) are handled via **gRPC** on the write domain.
+    See the Protobuf definition in `ledger-common/src/main/proto/ledger.proto` for write API details.
+
+    ### Consistency Model
+    - **Write Domain (gRPC)**: Strong consistency (linearizable via Raft consensus)
+    - **Read Domain (REST)**: Eventual consistency (typically < 100ms lag behind write domain)
+  version: 1.0.0
+  contact:
+    name: Ledger Team
+  license:
+    name: Educational Use Only
+
+servers:
+  - url: http://localhost:8080
+    description: Local development (View service)
+
+tags:
+  - name: Accounts
+    description: Account balance queries
+  - name: Transactions
+    description: Transaction history queries
+  - name: Health
+    description: System and cluster health checks
+
+paths:
+  /api/v1/accounts/{userId}:
+    get:
+      tags: [Accounts]
+      summary: Get all asset balances for a user
+      description: Returns a list of all assets and their current balances for the specified user.
+      operationId: getAccountBalances
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Unique user identifier
+          schema:
+            type: string
+            example: user001
+      responses:
+        "200":
+          description: List of asset balances
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountBalancesResponse"
+              example:
+                userId: user001
+                balances:
+                  - asset: BTC
+                    balance: "1.500000000000000000"
+                    updatedAt: "2024-01-15T10:30:00Z"
+                  - asset: ETH
+                    balance: "25.000000000000000000"
+                    updatedAt: "2024-01-15T10:31:00Z"
+                  - asset: USDT
+                    balance: "10000.000000000000000000"
+                    updatedAt: "2024-01-15T10:32:00Z"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/accounts/{userId}/assets/{asset}:
+    get:
+      tags: [Accounts]
+      summary: Get balance for a specific asset
+      description: Returns the current balance of a specific asset for the specified user.
+      operationId: getAssetBalance
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Unique user identifier
+          schema:
+            type: string
+            example: user001
+        - name: asset
+          in: path
+          required: true
+          description: Asset symbol (e.g., BTC, ETH, USDT)
+          schema:
+            type: string
+            example: BTC
+      responses:
+        "200":
+          description: Asset balance details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetBalanceResponse"
+              example:
+                userId: user001
+                asset: BTC
+                balance: "1.500000000000000000"
+                updatedAt: "2024-01-15T10:30:00Z"
+        "404":
+          description: Account or asset not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/transactions:
+    get:
+      tags: [Transactions]
+      summary: Query transaction history
+      description: |
+        Returns a paginated list of transactions matching the specified filters.
+        Results are ordered by creation time (newest first by default).
+      operationId: getTransactions
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          description: Filter by user ID (matches both from and to user)
+          schema:
+            type: string
+            example: user001
+        - name: asset
+          in: query
+          required: false
+          description: Filter by asset symbol
+          schema:
+            type: string
+            example: BTC
+        - name: type
+          in: query
+          required: false
+          description: Filter by transaction type
+          schema:
+            type: string
+            enum: [DEPOSIT, WITHDRAWAL, TRANSFER]
+        - name: status
+          in: query
+          required: false
+          description: Filter by transaction status
+          schema:
+            type: string
+            enum: [SUCCESS, FAILED]
+        - name: from
+          in: query
+          required: false
+          description: Start time (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+            example: "2024-01-01T00:00:00Z"
+        - name: to
+          in: query
+          required: false
+          description: End time (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+            example: "2024-01-31T23:59:59Z"
+        - name: page
+          in: query
+          required: false
+          description: Page number (0-indexed)
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: size
+          in: query
+          required: false
+          description: Page size
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: sort
+          in: query
+          required: false
+          description: Sort order
+          schema:
+            type: string
+            enum: [created_at_desc, created_at_asc]
+            default: created_at_desc
+      responses:
+        "200":
+          description: Paginated list of transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionPageResponse"
+        "400":
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/transactions/{txId}:
+    get:
+      tags: [Transactions]
+      summary: Get transaction by ID
+      description: Returns details of a specific transaction by its unique transaction ID.
+      operationId: getTransactionById
+      parameters:
+        - name: txId
+          in: path
+          required: true
+          description: Unique transaction ID
+          schema:
+            type: string
+            example: tx-20240115-001
+      responses:
+        "200":
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionResponse"
+        "404":
+          description: Transaction not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/health:
+    get:
+      tags: [Health]
+      summary: View service health check
+      description: Returns the health status of the view (read) service, including database and Kafka connectivity.
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: UP
+                components:
+                  database:
+                    status: UP
+                    details:
+                      type: PostgreSQL
+                      version: "16.1"
+                  kafka:
+                    status: UP
+                    details:
+                      bootstrapServers: kafka:9092
+                      consumerLag: 12
+        "503":
+          description: Service is unhealthy
+
+  /api/v1/health/cluster:
+    get:
+      tags: [Health]
+      summary: Raft cluster health
+      description: |
+        Returns the health status of the Raft cluster, including leader information,
+        follower status, and replication lag. This endpoint queries the write domain
+        via gRPC to obtain cluster state.
+      operationId: clusterHealth
+      responses:
+        "200":
+          description: Cluster status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterHealthResponse"
+              example:
+                clusterStatus: HEALTHY
+                leader:
+                  nodeId: node1
+                  address: "ledger-node-1:10001"
+                  term: 5
+                  lastLogIndex: 12345
+                followers:
+                  - nodeId: node2
+                    address: "ledger-node-2:10002"
+                    status: ACTIVE
+                    lastAppliedIndex: 12343
+                    lagEntries: 2
+                  - nodeId: node3
+                    address: "ledger-node-3:10003"
+                    status: ACTIVE
+                    lastAppliedIndex: 12345
+                    lagEntries: 0
+                learners:
+                  - nodeId: node4
+                    address: "ledger-learner-1:10004"
+                    status: ACTIVE
+                    lastAppliedIndex: 12340
+                    lagEntries: 5
+        "503":
+          description: Cluster is unhealthy or unreachable
+
+  /api/v1/reconciliation/status:
+    get:
+      tags: [Health]
+      summary: Reconciliation status
+      description: |
+        Returns the latest reconciliation results comparing the read domain (PostgreSQL)
+        against the write domain (in-memory Raft state machine).
+      operationId: reconciliationStatus
+      responses:
+        "200":
+          description: Reconciliation results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationResponse"
+              example:
+                lastRunAt: "2024-01-15T10:35:00Z"
+                status: CONSISTENT
+                accountsChecked: 1500
+                discrepancies: 0
+                details: []
+
+components:
+  schemas:
+    AccountBalancesResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+        balances:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssetBalance"
+
+    AssetBalance:
+      type: object
+      properties:
+        asset:
+          type: string
+        balance:
+          type: string
+          description: Balance as string to preserve precision (up to 18 decimal places)
+        updatedAt:
+          type: string
+          format: date-time
+
+    AssetBalanceResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+        asset:
+          type: string
+        balance:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+
+    TransactionResponse:
+      type: object
+      properties:
+        txId:
+          type: string
+        type:
+          type: string
+          enum: [DEPOSIT, WITHDRAWAL, TRANSFER]
+        fromUserId:
+          type: string
+          nullable: true
+        toUserId:
+          type: string
+          nullable: true
+        asset:
+          type: string
+        amount:
+          type: string
+        status:
+          type: string
+          enum: [SUCCESS, FAILED]
+        raftLogIndex:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+
+    TransactionPageResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionResponse"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        hasNext:
+          type: boolean
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN]
+        components:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+              details:
+                type: object
+                additionalProperties: true
+
+    ClusterHealthResponse:
+      type: object
+      properties:
+        clusterStatus:
+          type: string
+          enum: [HEALTHY, DEGRADED, UNAVAILABLE]
+        leader:
+          $ref: "#/components/schemas/NodeStatus"
+        followers:
+          type: array
+          items:
+            $ref: "#/components/schemas/NodeStatus"
+        learners:
+          type: array
+          items:
+            $ref: "#/components/schemas/NodeStatus"
+
+    NodeStatus:
+      type: object
+      properties:
+        nodeId:
+          type: string
+        address:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, UNKNOWN]
+        term:
+          type: integer
+          format: int64
+        lastLogIndex:
+          type: integer
+          format: int64
+        lastAppliedIndex:
+          type: integer
+          format: int64
+        lagEntries:
+          type: integer
+          format: int64
+
+    ReconciliationResponse:
+      type: object
+      properties:
+        lastRunAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [CONSISTENT, INCONSISTENT, ERROR]
+        accountsChecked:
+          type: integer
+        discrepancies:
+          type: integer
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+              asset:
+                type: string
+              writeBalance:
+                type: string
+              readBalance:
+                type: string
+              diff:
+                type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string

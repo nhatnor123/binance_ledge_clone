@@ -1,0 +1,4 @@
+dependencies {
+    implementation project(':ledger-common')
+    implementation 'com.lmax:disruptor:4.0.0'
+}

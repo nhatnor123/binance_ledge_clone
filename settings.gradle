@@ -1,0 +1,11 @@
+rootProject.name = 'binance-ledger-clone'
+
+include 'ledger-common'
+include 'ledger-core'
+// Phase 3+
+// include 'ledger-raft'
+// include 'ledger-server'
+// Phase 5+
+// include 'ledger-view'
+// include 'ledger-benchmark'
+// include 'ledger-loadgen'

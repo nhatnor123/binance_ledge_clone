@@ -1,6 +1,10 @@
-/build/
-.idea/
-/out/
-.idea_modules/
-
-*.DS_Store
+.gradle/
+build/
+out/
+*.class
+*.jar
+.idea/*.xml
+.idea/modules.xml
+.idea/workspace.xml
+*.iml
+.DS_Store

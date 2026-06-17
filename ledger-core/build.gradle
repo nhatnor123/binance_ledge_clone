@@ -1,4 +1,5 @@
 dependencies {
     implementation project(':ledger-common')
     implementation 'com.lmax:disruptor:4.0.0'
+    implementation 'org.rocksdb:rocksdbjni:8.11.5'
 }

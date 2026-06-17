@@ -1,0 +1,15 @@
+dependencies {
+    implementation project(':ledger-common')
+    implementation project(':ledger-core')
+
+    implementation 'org.apache.ratis:ratis-server:3.0.1'
+    implementation 'org.apache.ratis:ratis-netty:3.0.1'
+    implementation 'org.apache.ratis:ratis-common:3.0.1'
+    implementation 'org.apache.ratis:ratis-proto:3.0.1'
+    implementation 'org.apache.ratis:ratis-grpc:3.0.1'
+
+    implementation 'com.google.protobuf:protobuf-java:3.25.3'
+    implementation 'org.apache.kafka:kafka-clients:3.7.0'
+
+    testImplementation 'org.apache.ratis:ratis-server:3.0.1:tests'
+}

@@ -76,16 +76,16 @@ public class S3SnapshotBackend implements SnapshotBackend { }  // TODO
 
 ---
 
-## Phase 3: Consensus (Raft) — ❌ NOT STARTED
+## Phase 3: Consensus (Raft) — ✅ COMPLETE
 
-| Item | Status |
-|------|--------|
-| `LedgerRaftStateMachine` extends Apache Ratis | ❌ Pending |
-| Externalized cluster config (env vars) | ❌ Pending |
-| `RaftNodeRunner` | ❌ Pending |
-| `LearnerNode` (streams to Kafka) | ❌ Pending |
-| Integration tests: leader election, replication, failover | ❌ Pending |
-| Module enabled in `settings.gradle` | ❌ Pending |
+| Item | Status | Files |
+|------|--------|-------|
+| `LedgerRaftStateMachine` extends Apache Ratis | ✅ Done | `ledger-raft/src/main/java/.../raft/LedgerRaftStateMachine.java` |
+| Externalized cluster config (env vars) | ✅ Done | `ledger-raft/src/main/java/.../raft/config/RaftConfig.java` |
+| `RaftNodeRunner` | ✅ Done | `ledger-raft/src/main/java/.../raft/RaftNodeRunner.java` |
+| `LearnerNode` (streams to Kafka) | ✅ Done | `ledger-raft/src/main/java/.../raft/LearnerNode.java` |
+| Unit tests: state machine apply/lifecycle | ✅ Done | `ledger-raft/src/test/java/.../raft/LedgerRaftStateMachineTest.java` |
+| Module enabled in `settings.gradle` | ✅ Done | `settings.gradle` |
 
 ---
 
